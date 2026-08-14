@@ -1,0 +1,41 @@
+{
+  "name": "dev-market-shift-oracle",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dev Market Shift Oracle monorepo",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm run --parallel /dev:/",
+    "dev:api": "pnpm --filter @dev-market-oracle/api start:dev",
+    "dev:web": "pnpm --filter @dev-market-oracle/web dev",
+    "build": "pnpm -r --filter @dev-market-oracle/shared-types --filter @dev-market-oracle/api --filter @dev-market-oracle/web run build",
+    "lint": "pnpm -r --filter @dev-market-oracle/api --filter @dev-market-oracle/web --filter @dev-market-oracle/shared-types run lint",
+    "typecheck": "pnpm -r --filter @dev-market-oracle/shared-types --filter @dev-market-oracle/api --filter @dev-market-oracle/web run typecheck",
+    "test": "pnpm --filter @dev-market-oracle/api test",
+    "test:api": "pnpm --filter @dev-market-oracle/api test",
+    "db:migrate": "pnpm --filter @dev-market-oracle/api prisma:migrate",
+    "db:seed": "pnpm --filter @dev-market-oracle/api prisma:seed",
+    "db:studio": "pnpm --filter @dev-market-oracle/api prisma:studio",
+    "docker:up": "docker compose -f infra/docker-compose.yml up -d",
+    "docker:up:full": "docker compose -f infra/docker-compose.yml --profile full up -d --build",
+    "docker:down": "docker compose -f infra/docker-compose.yml --profile full down",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

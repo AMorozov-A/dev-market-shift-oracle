@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SyncStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIALLY_COMPLETED
+  FAILED
+}
+
+enum RawRecordType {
+  SEARCH_RESPONSE
+  VACANCY_DETAIL
+}
+
+enum RoleCluster {
+  FRONTEND
+  FULLSTACK
+  BACKEND
+  MOBILE
+  DEVOPS
+  ML_AI
+  AI_FIRST
+  DATA_ENGINEERING
+  UNCLASSIFIED
+}
+
+enum ClassificationField {
+  TITLE
+  DESCRIPTION
+  SKILL
+}
+
+enum SkillCategory {
+  FRONTEND
+  BACKEND_FULLSTACK
+  MOBILE
+  DEVOPS
+  ML_AI
+  AI_FIRST
+  DATA_ENGINEERING
+}
+
+enum ForecastTargetMetric {
+  VACANCY_COUNT
+  MARKET_SHARE
+}
+
+enum ForecastDirection {
+  UP
+  DOWN
+  STABLE
+}
+
+enum ForecastStatus {
+  READY
+  INSUFFICIENT_HISTORY
+  FAILED
+}
+
+model Source {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  baseUrl   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  syncRuns         SyncRun[]
+  rawSourceRecords RawSourceRecord[]
+  vacancies        Vacancy[]
+  dailyRoleMetrics DailyRoleMetric[]
+}
+
+model QueryProfile {
+  id          String      @id @default(cuid())
+  code        String      @unique
+  title       String
+  clusterHint RoleCluster
+  searchText  String
+  /// Provider code this profile belongs to: HH | REMOTIVE
+  sourceCode  String      @default("HH")
+  host        String      @default("hh.ru")
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([clusterHint, isActive])
+  @@index([sourceCode, isActive])
+  @@index([isActive])
+}
+
+model SyncRun {
+  id                   String     @id @default(cuid())
+  status               SyncStatus @default(QUEUED)
+  sourceId             String
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  requestedAt          DateTime   @default(now())
+  requestedBy          String?
+  totalProfiles        Int        @default(0)
+  processedProfiles    Int        @default(0)
+  foundVacancies       Int        @default(0)
+  fetchedDetails       Int        @default(0)
+  normalizedVacancies  Int        @default(0)
+  failedRequests       Int        @default(0)
+  errorSummary         String?
+  metadata             Json?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  source             Source              @relation(fields: [sourceId], references: [id])
+  rawSourceRecords   RawSourceRecord[]
+  vacancySnapshots   VacancySnapshot[]
+
+  @@index([status, createdAt])
+  @@index([sourceId, createdAt])
+}
+
+model RawSourceRecord {
+  id            String        @id @default(cuid())
+  sourceId      String
+  syncRunId     String
+  recordType    RawRecordType
+  externalId    String?
+  requestUrl    String
+  requestParams Json
+  httpStatus    Int
+  fetchedAt     DateTime
+  payload       Json
+  payloadHash   String
+  createdAt     DateTime      @default(now())
+
+  source  Source  @relation(fields: [sourceId], references: [id])
+  syncRun SyncRun @relation(fields: [syncRunId], references: [id])
+
+  @@unique([sourceId, recordType, payloadHash])
+  @@index([syncRunId, recordType])
+  @@index([externalId, recordType])
+  @@index([fetchedAt])
+}
+
+model Vacancy {
+  id                        String       @id @default(cuid())
+  sourceId                  String
+  externalId                String
+  url                       String
+  title                     String
+  description               String?
+  employerName              String?
+  areaId                    String?
+  areaName                  String?
+  publishedAt               DateTime
+  archived                  Boolean      @default(false)
+  employment                String?
+  experience                String?
+  schedule                  String?
+  salaryFrom                Decimal?     @db.Decimal(14, 2)
+  salaryTo                  Decimal?     @db.Decimal(14, 2)
+  salaryCurrency            String?
+  salaryGross               Boolean?
+  primaryRoleCluster        RoleCluster?
+  classificationConfidence  Decimal?     @db.Decimal(5, 4)
+  classificationVersion     String
+  firstSeenAt               DateTime     @default(now())
+  lastSeenAt                DateTime     @default(now())
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+
+  source                Source                          @relation(fields: [sourceId], references: [id])
+  snapshots             VacancySnapshot[]
+  classificationEvidence VacancyClassificationEvidence[]
+  skills                VacancySkill[]
+
+  @@unique([sourceId, externalId])
+  @@index([primaryRoleCluster, publishedAt])
+  @@index([publishedAt])
+  @@index([lastSeenAt])
+  @@index([areaId])
+}
+
+model VacancySnapshot {
+  id              String       @id @default(cuid())
+  vacancyId       String
+  syncRunId       String
+  observedAt      DateTime
+  isActive        Boolean      @default(true)
+  title           String
+  descriptionHash String?
+  salaryFrom      Decimal?     @db.Decimal(14, 2)
+  salaryTo        Decimal?     @db.Decimal(14, 2)
+  salaryCurrency  String?
+  cluster         RoleCluster?
+  createdAt       DateTime     @default(now())
+
+  vacancy Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  syncRun SyncRun @relation(fields: [syncRunId], references: [id])
+
+  @@index([vacancyId, observedAt])
+  @@index([syncRunId])
+}
+
+model VacancyClassificationEvidence {
+  id                String              @id @default(cuid())
+  vacancyId         String
+  cluster           RoleCluster
+  field             ClassificationField
+  matchedTerm       String
+  weight            Decimal             @db.Decimal(10, 4)
+  contribution      Decimal             @db.Decimal(10, 4)
+  classifierVersion String
+  createdAt         DateTime            @default(now())
+
+  vacancy Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+
+  @@index([vacancyId, cluster])
+  @@index([classifierVersion])
+}
+
+model Skill {
+  id        String        @id @default(cuid())
+  code      String        @unique
+  name      String
+  category  SkillCategory
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  vacancySkills     VacancySkill[]
+  dailySkillMetrics DailySkillMetric[]
+
+  @@index([category])
+}
+
+model VacancySkill {
+  vacancyId   String
+  skillId     String
+  sourceField ClassificationField
+  confidence  Decimal             @db.Decimal(5, 4)
+  createdAt   DateTime            @default(now())
+
+  vacancy Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id])
+
+  @@id([vacancyId, skillId])
+  @@index([skillId])
+}
+
+model DailyRoleMetric {
+  id                          String      @id @default(cuid())
+  metricDate                  DateTime    @db.Date
+  sourceId                    String
+  roleCluster                 RoleCluster
+  /// Empty string means "all areas" (avoids NULL uniqueness issues in Postgres).
+  areaId                      String      @default("")
+  vacancyCount                Int         @default(0)
+  classifiedVacancyCount      Int         @default(0)
+  marketShare                 Decimal     @db.Decimal(8, 6)
+  salarySampleSize            Int         @default(0)
+  salaryCoverageRate          Decimal     @db.Decimal(8, 6)
+  medianSalaryMidpoint        Decimal?    @db.Decimal(14, 2)
+  averageSalaryMidpoint       Decimal?    @db.Decimal(14, 2)
+  uniqueEmployersCount        Int         @default(0)
+  avgClassificationConfidence Decimal?    @db.Decimal(5, 4)
+  metadata                    Json?
+  createdAt                   DateTime    @default(now())
+  updatedAt                   DateTime    @updatedAt
+
+  source Source @relation(fields: [sourceId], references: [id])
+
+  @@unique([metricDate, sourceId, roleCluster, areaId])
+  @@index([metricDate, roleCluster])
+}
+
+model DailySkillMetric {
+  id                 String      @id @default(cuid())
+  metricDate         DateTime    @db.Date
+  roleCluster        RoleCluster
+  skillId            String
+  vacancyCount       Int         @default(0)
+  shareWithinCluster Decimal     @db.Decimal(8, 6)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  skill Skill @relation(fields: [skillId], references: [id])
+
+  @@unique([metricDate, roleCluster, skillId])
+  @@index([roleCluster, metricDate])
+}
+
+model Forecast {
+  id              String               @id @default(cuid())
+  roleCluster     RoleCluster
+  targetMetric    ForecastTargetMetric
+  horizonDays     Int
+  modelName       String
+  modelVersion    String
+  trainStartDate  DateTime             @db.Date
+  trainEndDate    DateTime             @db.Date
+  generatedAt     DateTime
+  predictedValue  Decimal              @db.Decimal(14, 6)
+  lowerBound      Decimal?             @db.Decimal(14, 6)
+  upperBound      Decimal?             @db.Decimal(14, 6)
+  direction       ForecastDirection
+  confidence      Decimal              @db.Decimal(5, 4)
+  sampleSize      Int
+  riskFactors     Json
+  explanation     Json
+  status          ForecastStatus
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  points ForecastPoint[]
+
+  @@index([roleCluster, targetMetric, horizonDays, generatedAt])
+  @@index([status, generatedAt])
+}
+
+model ForecastPoint {
+  id             String   @id @default(cuid())
+  forecastId     String
+  forecastDate   DateTime @db.Date
+  predictedValue Decimal  @db.Decimal(14, 6)
+  lowerBound     Decimal? @db.Decimal(14, 6)
+  upperBound     Decimal? @db.Decimal(14, 6)
+  actualValue    Decimal? @db.Decimal(14, 6)
+  createdAt      DateTime @default(now())
+
+  forecast Forecast @relation(fields: [forecastId], references: [id], onDelete: Cascade)
+
+  @@unique([forecastId, forecastDate])
+  @@index([forecastDate])
+}
+
+model ForecastBacktest {
+  id            String               @id @default(cuid())
+  roleCluster   RoleCluster
+  targetMetric  ForecastTargetMetric
+  modelName     String
+  evaluatedAt   DateTime
+  trainStartDate DateTime            @db.Date
+  trainEndDate  DateTime             @db.Date
+  testStartDate DateTime             @db.Date
+  testEndDate   DateTime             @db.Date
+  sampleSize    Int
+  mae           Decimal?             @db.Decimal(14, 6)
+  mape          Decimal?             @db.Decimal(14, 6)
+  metadata      Json?
+  createdAt     DateTime             @default(now())
+
+  @@index([roleCluster, targetMetric, evaluatedAt])
+}

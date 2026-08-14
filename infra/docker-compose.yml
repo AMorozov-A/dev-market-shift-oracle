@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dms-oracle-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dev_market_oracle}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-dev_market_oracle}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: dms-oracle-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    container_name: dms-oracle-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-dev_market_oracle}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RUN_SEED: ${RUN_SEED:-true}
+      REMOTEOK_BASE_URL: ${REMOTEOK_BASE_URL:-https://remoteok.com}
+      JOBICY_BASE_URL: ${JOBICY_BASE_URL:-https://jobicy.com}
+      SYNC_DEFAULT_SOURCE_CODES: ${SYNC_DEFAULT_SOURCE_CODES:-REMOTEOK,JOBICY}
+      SYNC_MAX_PROFILES_PER_RUN: ${SYNC_MAX_PROFILES_PER_RUN:-24}
+      SYNC_MIN_HISTORY_DAYS_FOR_FORECAST: ${SYNC_MIN_HISTORY_DAYS_FOR_FORECAST:-14}
+      SYNC_FORECAST_HORIZON_DAYS: ${SYNC_FORECAST_HORIZON_DAYS:-30}
+    ports:
+      - '${DOCKER_API_PORT:-3000}:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch("http://127.0.0.1:3000/api/v1/health").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    profiles: ['full']
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    container_name: dms-oracle-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${DOCKER_WEB_PORT:-8080}:80'
+    profiles: ['full']
+
+volumes:
+  postgres_data:
+  redis_data:
