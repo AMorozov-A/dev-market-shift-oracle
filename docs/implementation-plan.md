@@ -9,7 +9,7 @@
 - **Phase 4:** complete — RoleClassifier (8 clusters), SkillExtractor, evidence + skills on sync
 - **Phase 5:** complete — DailyRoleMetric / DailySkillMetric, market + skills APIs, forecast + backtest + explain
 - **Phase 6:** complete — Ant Design UI (5 pages), RTK Query, ECharts, source/period filters
-- **Phase 7:** complete — README (RU), screenshots, Docker Compose full stack, quality gates, TZ self-review
+- **Phase 7:** complete — README (RU), screenshots, Docker Compose full stack, quality gates
 
 ## Product summary
 
@@ -241,7 +241,7 @@ Product taxonomy is **curated in code**, not scraped from an open specialty dict
 | `DATA_ENGINEERING` | pipelines, warehouses, ETL/ELT                             |
 | `UNCLASSIFIED`     | below threshold / conflicting — excluded from market share |
 
-**List for the assignment UI:** these 8 clusters (not hundreds of HH roles).  
+**List for the UI:** these 8 clusters (not hundreds of HH roles).  
 Skills remain a second analytics slice (`/skills`), not the primary forecast object list in MVP.
 
 ### Sync pipeline (MVP)
@@ -325,7 +325,7 @@ Do **not** rewrite working Phase 1–2 foundation unrelated to this delta.
 | 4         | `start phase 4`                    | Normalize, RoleClassifier (8 clusters), SkillExtractor, evidence, unit tests                                          |
 | 5         | `start phase 5`                    | Daily metrics, overview/trends/skills APIs, forecast + backtest + explain (per cluster list)                          |
 | 6         | `start phase 6`                    | Ant Design shell + 5 pages; segment list + forecast cards; source filter                                              |
-| 7         | `start phase 7`                    | Full README (RU), screenshots, docker from scratch, quality gates, TZ self-review                                     |
+| 7         | `start phase 7`                    | Full README (RU), screenshots, docker from scratch, quality gates                                                     |
 
 ### Phase 3 acceptance (updated)
 
